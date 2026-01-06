@@ -1,4 +1,4 @@
-import html2canvas from "html2canvas";
+import { toPng } from 'html-to-image';
 import React, { useState, useEffect, useRef, useMemo } from "react";
 
 const INITIAL_DAYS = 47;
@@ -21,15 +21,28 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
   const [activeColor, setActiveColor] = useState(PRESET_COLORS[0]);
   const resizeHandlersRef = useRef({ move: null, end: null });
 
-  // Calcular días basado en barras
+  // Calcular días basado en barras (2 días más del máximo)
   const numDays = useMemo(() => {
-    let maxDay = INITIAL_DAYS - 1;
+    let maxDay = -1;
     rows.forEach(row => {
       row.bars?.forEach(bar => {
         if (bar.end > maxDay) maxDay = bar.end;
       });
     });
-    return Math.max(maxDay + 2, INITIAL_DAYS);
+    // Si hay barras, mostrar hasta maxDay + 3 (2 días más del último)
+    // Mínimo 30 días en modo edición
+    return Math.max(maxDay >= 0 ? maxDay + 3 : 30, 30);
+  }, [rows]);
+
+  // Días para exportación: exactamente maxDay + 3 (2 días después del último)
+  const numDaysExport = useMemo(() => {
+    let maxDay = -1;
+    rows.forEach(row => {
+      row.bars?.forEach(bar => {
+        if (bar.end > maxDay) maxDay = bar.end;
+      });
+    });
+    return maxDay >= 0 ? maxDay + 3 : 30;
   }, [rows]);
 
   // Función para unir barras contiguas del mismo color
@@ -57,29 +70,29 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
   useEffect(() => {
     if (!exporting) return;
     const handleExportPNG = async () => {
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 200));
       const tableDiv = exportAreaRef.current;
       if (!tableDiv) return;
-      const prevWidth = tableDiv.style.width;
-      const prevOverflow = tableDiv.style.overflow;
-      tableDiv.style.width = tableDiv.scrollWidth + 'px';
-      tableDiv.style.overflow = 'visible';
-      await new Promise(r => setTimeout(r, 100));
-      const canvas = await html2canvas(tableDiv, { 
-        scale: 4, 
-        useCORS: true, 
-        backgroundColor: '#f8fafc',
-        logging: false,
-        allowTaint: true,
-      });
-      const imgData = canvas.toDataURL("image/png", 1.0);
-      const link = document.createElement('a');
-      link.href = imgData;
-      link.download = `calendario_${Date.now()}.png`;
-      link.click();
-      tableDiv.style.width = prevWidth;
-      tableDiv.style.overflow = prevOverflow;
-      setExporting(false);
+      
+      try {
+        const imgData = await toPng(tableDiv, {
+          quality: 1,
+          pixelRatio: 2,
+          cacheBust: true,
+          backgroundColor: '#ffffff',
+          fontEmbedCSS: '',
+          fontEmbedCss: '',
+        });
+        
+        const link = document.createElement('a');
+        link.href = imgData;
+        link.download = `calendario_${Date.now()}.png`;
+        link.click();
+      } catch (err) {
+        console.error('Error exportando:', err);
+      } finally {
+        setExporting(false);
+      }
     };
     handleExportPNG();
   }, [exporting, setExporting]);
@@ -89,8 +102,10 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
   };
 
   const handleRowChange = (idx, field, value) => {
+    // Convertir texto a mayúsculas automáticamente
+    const upperValue = typeof value === 'string' ? value.toUpperCase() : value;
     setRows(rows => rows.map((row, i) =>
-      i === idx ? { ...row, [field]: value } : row
+      i === idx ? { ...row, [field]: upperValue } : row
     ));
   };
 
@@ -187,6 +202,11 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
     ));
   };
 
+  const deleteRow = (idx) => {
+    if (rows.length <= 1) return;
+    setRows(rows => rows.filter((_, i) => i !== idx));
+  };
+
   // Colores del diseño
   const headerBg = "#7c3aed";
   const headerBgLight = "#a78bfa";
@@ -194,31 +214,33 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
   // MODO EXPORTACIÓN - Con encabezados y tabla completa
   if (exporting) {
     return (
-      <div className="w-full max-w-[98vw] mx-auto">
+      <div style={{ display: 'inline-block' }}>
         <div
           ref={exportAreaRef}
           id="calendario-export-area"
           style={{ 
-            background: '#ffffff', 
-            padding: 0, 
-            minWidth: 1200,
+            background: 'white', 
+            padding: '10px',
             fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ borderCollapse: 'collapse' }}>
             <thead>
-              <tr>
+              <tr style={{ height: '36px' }}>
                 <th 
                   style={{
                     background: headerBg,
                     color: '#fff',
-                    padding: '10px 12px',
+                    padding: '0 3px',
+                    paddingTop: -1,
                     textAlign: 'left',
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 600,
-                    minWidth: 250,
-                    width: 250,
+                    width: 100,
+                    minWidth: 100,
                     borderRight: '1px solid #9333ea',
+                    verticalAlign: 'middle',
+                    height: '36px',
                   }}
                 >
                   Fase
@@ -227,29 +249,35 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
                   style={{
                     background: headerBg,
                     color: '#fff',
-                    padding: '10px 12px',
+                    padding: '0 3px',
+                    paddingTop: -1,
                     textAlign: 'center',
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 600,
-                    minWidth: 80,
-                    width: 80,
+                    width: 30,
+                    minWidth: 30,
                     borderRight: '1px solid #9333ea',
+                    verticalAlign: 'middle',
+                    height: '36px',
                   }}
                 >
                   Perfiles
                 </th>
-                {Array.from({ length: numDays }, (_, idx) => (
+                {Array.from({ length: numDaysExport }, (_, idx) => (
                   <th
                     key={idx}
                     style={{
                       background: headerBgLight,
                       color: '#fff',
-                      padding: '8px 0',
+                      padding: '0',
+                      paddingTop: -1,
                       textAlign: 'center',
                       fontSize: 11,
-                      fontWeight: 500,
-                      minWidth: 22,
+                      fontWeight: 700,
+                      maxWidth: 22,
                       width: 22,
+                      verticalAlign: 'middle',
+                      height: '36px',
                     }}
                   >
                     {idx + 1}
@@ -263,34 +291,42 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
                 const mergedBars = getMergedBars(row.bars);
                 
                 return (
-                  <tr key={i} style={{ background: rowBg }}>
+                  <tr key={i} style={{ background: rowBg, height: '32px' }}>
                     <td 
                       style={{
                         background: rowBg,
-                        padding: '8px 12px',
-                        fontSize: 12,
-                        color: '#1e293b',
+                        padding: '0 3px',
+                        paddingTop: -1,
+                        fontSize: 11,
+                        color: '#000000',
                         borderBottom: '1px solid #e5e7eb',
                         borderRight: '1px solid #e5e7eb',
+                        verticalAlign: 'middle',
+                        width: 100,
+                        minWidth: 100,
                       }}
                     >
-                      {row.phase || '-'}
+                      {row.phase?.toUpperCase() || '-'}
                     </td>
                     <td 
                       style={{
                         background: rowBg,
-                        padding: '8px 12px',
+                        padding: '0 3px',
+                        paddingTop: -1,
                         fontSize: 11,
-                        color: '#64748b',
+                        color: '#000000',
                         textAlign: 'center',
                         fontWeight: 500,
                         borderBottom: '1px solid #e5e7eb',
                         borderRight: '1px solid #e5e7eb',
+                        verticalAlign: 'middle',
+                        width: 30,
+                        minWidth: 30,
                       }}
                     >
-                      {row.profile || '-'}
+                      {row.profile?.toUpperCase() || '-'}
                     </td>
-                    {Array.from({ length: numDays }, (_, d) => {
+                    {Array.from({ length: numDaysExport }, (_, d) => {
                       const barHere = mergedBars.find(bar => d >= bar.start && d <= bar.end);
                       const isBarStart = barHere && d === barHere.start;
                       const isBarEnd = barHere && d === barHere.end;
@@ -300,9 +336,9 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
                           key={`cell-${d}`}
                           style={{
                             padding: 0,
-                            minWidth: 22,
+                            maxWidth: 22,
                             width: 22,
-                            height: 28,
+                            height: 24,
                             background: rowBg,
                             borderBottom: '1px solid #e5e7eb',
                             position: 'relative',
@@ -363,6 +399,15 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
           <thead>
             <tr>
               <th 
+                className="px-3 py-2 text-center font-semibold text-white text-sm border-r border-purple-400"
+                style={{
+                  background: headerBg,
+                  minWidth: 30,
+                  width: 30,
+                }}
+              >
+              </th>
+              <th 
                 className="px-3 py-2 text-left font-semibold text-white text-sm border-r border-purple-400"
                 style={{
                   background: headerBg,
@@ -407,11 +452,32 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
               return (
                 <tr key={i} className="group" style={{ background: rowBg }}>
                   <td 
+                    className="px-2 py-1 border-r border-gray-200 text-center"
+                    style={{
+                      background: rowBg,
+                      borderBottom: '1px solid #e5e7eb',
+                      minWidth: 30,
+                    }}
+                  >
+                    <button
+                      onClick={() => deleteRow(i)}
+                      disabled={rows.length === 1}
+                      className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0"
+                      title="Eliminar tarea"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </td>
+                  <td 
                     className="px-2 py-1 border-r border-gray-200"
                     style={{
                       background: rowBg,
                       borderBottom: '1px solid #e5e7eb',
                       minWidth: 200,
+                      verticalAlign: 'middle',
+                      display: 'table-cell',
                     }}
                   >
                     <input
@@ -428,6 +494,8 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
                       background: rowBg,
                       borderBottom: '1px solid #e5e7eb',
                       minWidth: 70,
+                      verticalAlign: 'middle',
+                      display: 'table-cell',
                     }}
                   >
                     <input
@@ -469,6 +537,8 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
                           background: rowBg,
                           borderBottom: '1px solid #e5e7eb',
                           position: 'relative',
+                          verticalAlign: 'middle',
+                          display: 'table-cell',
                         }}
                         onMouseDown={e => {
                           if (e.altKey && isBar) {

@@ -43,8 +43,10 @@ export default function GanttTableSimpleEditor({ rows, setRows, onExport }) {
   const [creatingRowIdx, setCreatingRowIdx] = useState(null);
 
   const handleRowChange = (idx, field, value) => {
+    // Convertir texto a mayúsculas automáticamente
+    const upperValue = typeof value === 'string' ? value.toUpperCase() : value;
     setRows(rows => rows.map((row, i) =>
-      i === idx ? { ...row, [field]: value } : row
+      i === idx ? { ...row, [field]: upperValue } : row
     ));
   };
 
@@ -152,6 +154,11 @@ export default function GanttTableSimpleEditor({ rows, setRows, onExport }) {
     setRows([...rows, { phase: "", profile: "", bars: [] }]);
   };
 
+  const removeRow = (idx) => {
+    if (rows.length <= 1) return;
+    setRows(rows => rows.filter((_, i) => i !== idx));
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto px-2">
       {/* Lista de tareas como cards para móvil */}
@@ -162,29 +169,39 @@ export default function GanttTableSimpleEditor({ rows, setRows, onExport }) {
             className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden"
           >
             {/* Header de la tarea */}
-            <div className="bg-purple-600 px-3 py-2 flex items-center">
+            <div className="bg-purple-600 px-3 py-2 flex items-center justify-between">
               <span className="text-white text-xs font-medium">Tarea {i + 1}</span>
+              <button
+                onClick={() => removeRow(i)}
+                disabled={rows.length === 1}
+                className="p-1 text-white hover:text-red-200 opacity-100 group-hover:opacity-100 transition-opacity disabled:opacity-30"
+                title="Eliminar tarea"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
             
             {/* Contenido */}
             <div className="p-3 space-y-2">
               {/* Fase y Perfil */}
               <div className="grid grid-cols-2 gap-2">
-                <div>
+                <div className="flex flex-col">
                   <label className="text-xs text-gray-500 block mb-1">Fase</label>
                   <input
                     type="text"
-                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm bg-white focus:border-purple-400 focus:outline-none"
+                    className="w-full border border-gray-200 rounded px-2 py-2 text-sm bg-white focus:border-purple-400 focus:outline-none flex-1 flex items-center"
                     value={row.phase}
                     onChange={e => handleRowChange(i, "phase", e.target.value)}
                     placeholder="Nombre"
                   />
                 </div>
-                <div>
+                <div className="flex flex-col">
                   <label className="text-xs text-gray-500 block mb-1">Perfil</label>
                   <input
                     type="text"
-                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm bg-white focus:border-purple-400 focus:outline-none"
+                    className="w-full border border-gray-200 rounded px-2 py-2 text-sm bg-white focus:border-purple-400 focus:outline-none flex-1 flex items-center"
                     value={row.profile}
                     onChange={e => handleRowChange(i, "profile", e.target.value)}
                     placeholder="Perfil"
@@ -197,17 +214,17 @@ export default function GanttTableSimpleEditor({ rows, setRows, onExport }) {
                 <label className="text-xs text-gray-500 block mb-2">Hitos</label>
                 <div className="space-y-1.5">
                   {row.bars && row.bars.map((bar, barIdx) => (
-                    <button
+                    <div
                       key={barIdx}
-                      onClick={() => openBarEditor(i, barIdx)}
-                      className="w-full flex items-center gap-2 rounded p-2 border transition-colors hover:bg-opacity-50"
+                      className="w-full flex items-center gap-2 rounded p-2 border transition-colors cursor-pointer hover:bg-opacity-50"
                       style={{ borderColor: bar.color || '#3b82f6', background: `${bar.color || '#3b82f6'}10` }}
+                      onClick={() => openBarEditor(i, barIdx)}
                     >
                       <div 
                         className="w-4 h-4 rounded-full flex-shrink-0"
                         style={{ background: bar.color || '#3b82f6' }}
                       />
-                      <div className="flex-1 text-left">
+                      <div className="flex-1 flex items-center text-left">
                         <span className="text-xs font-medium text-gray-700">
                           {bar.start + 1} a {bar.end + 1}
                         </span>
@@ -224,7 +241,7 @@ export default function GanttTableSimpleEditor({ rows, setRows, onExport }) {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
-                    </button>
+                    </div>
                   ))}
                   <button
                     onClick={() => addBar(i)}
@@ -282,7 +299,7 @@ export default function GanttTableSimpleEditor({ rows, setRows, onExport }) {
                 <input
                   type="number"
                   min="1"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-200"
+                  className="w-full border border-gray-300 rounded px-3 py-2.5 text-sm bg-white focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-200"
                   value={formStart}
                   onChange={e => setFormStart(e.target.value)}
                   autoFocus
@@ -293,7 +310,7 @@ export default function GanttTableSimpleEditor({ rows, setRows, onExport }) {
                 <input
                   type="number"
                   min="1"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-200"
+                  className="w-full border border-gray-300 rounded px-3 py-2.5 text-sm bg-white focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-200"
                   value={formEnd}
                   onChange={e => setFormEnd(e.target.value)}
                 />
