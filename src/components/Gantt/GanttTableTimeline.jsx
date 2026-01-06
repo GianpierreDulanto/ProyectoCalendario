@@ -236,8 +236,9 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
                     textAlign: 'left',
                     fontSize: 12,
                     fontWeight: 600,
-                    width: 100,
+                    width: 'auto',
                     minWidth: 100,
+                    maxWidth: '300px',
                     borderRight: '1px solid #9333ea',
                     verticalAlign: 'middle',
                     height: '36px',
@@ -254,8 +255,9 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
                     textAlign: 'center',
                     fontSize: 12,
                     fontWeight: 600,
-                    width: 30,
+                    width: 'auto',
                     minWidth: 30,
+                    maxWidth: '150px',
                     borderRight: '1px solid #9333ea',
                     verticalAlign: 'middle',
                     height: '36px',
@@ -302,9 +304,14 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
                         borderBottom: '1px solid #e5e7eb',
                         borderRight: '1px solid #e5e7eb',
                         verticalAlign: 'middle',
-                        width: 100,
+                        width: 'auto',
                         minWidth: 100,
+                        maxWidth: '300px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                       }}
+                      title={row.phase?.toUpperCase()}
                     >
                       {row.phase?.toUpperCase() || '-'}
                     </td>
@@ -320,9 +327,14 @@ function GanttTableTimeline({ rows, setRows, exporting, setExporting }) {
                         borderBottom: '1px solid #e5e7eb',
                         borderRight: '1px solid #e5e7eb',
                         verticalAlign: 'middle',
-                        width: 30,
+                        width: 'auto',
                         minWidth: 30,
+                        maxWidth: '150px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                       }}
+                      title={row.profile?.toUpperCase()}
                     >
                       {row.profile?.toUpperCase() || '-'}
                     </td>
