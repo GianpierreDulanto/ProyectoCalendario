@@ -3,6 +3,10 @@ node_modules
 /.pnp
 .pnp.js
 
+# Firebase credentials
+firebase.config.js
+*.config.js
+
 # Testing
 /coverage
 
