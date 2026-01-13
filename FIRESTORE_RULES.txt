@@ -1,0 +1,17 @@
+// FIRESTORE SECURITY RULES
+// Copiar esto en: Firebase Console → Firestore Database → Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permitir que usuarios autenticados accedan a sus propios datos
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+      
+      // Permitir acceso a proyectos del usuario
+      match /projects/{document=**} {
+        allow read, write: if request.auth.uid == userId;
+      }
+    }
+  }
+}
