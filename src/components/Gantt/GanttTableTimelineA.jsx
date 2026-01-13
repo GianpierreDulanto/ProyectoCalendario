@@ -24,6 +24,8 @@ function GanttTableTimelineA({ rows, setRows, exporting, setExporting }) {
   const [emojiPickerPosition, setEmojiPickerPosition] = useState(null);
   const [emojiPickerTarget, setEmojiPickerTarget] = useState(null); // { rowIdx, barIdx }
   const resizeHandlersRef = useRef({ move: null, end: null });
+  const longPressTimeoutRef = useRef(null);
+  const longPressTargetRef = useRef(null);
 
   // Calcular días basado en barras (2 días más del máximo)
   const numDays = useMemo(() => {
@@ -212,6 +214,24 @@ function GanttTableTimelineA({ rows, setRows, exporting, setExporting }) {
     setRows(rows => rows.map((row, i) =>
       i === rowIdx ? { ...row, bars: row.bars.filter((_, j) => j !== barIdx) } : row
     ));
+  };
+
+  const handleCellTouchStart = (rowIdx, barIdx) => {
+    longPressTargetRef.current = { rowIdx, barIdx };
+    longPressTimeoutRef.current = setTimeout(() => {
+      if (barIdx !== -1) {
+        deleteBar(rowIdx, barIdx);
+        longPressTargetRef.current = null;
+      }
+    }, 500);
+  };
+
+  const handleCellTouchEnd = () => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+    longPressTargetRef.current = null;
   };
 
   const deleteRow = (idx) => {
@@ -592,6 +612,11 @@ function GanttTableTimelineA({ rows, setRows, exporting, setExporting }) {
                           }
                         }}
                         onMouseEnter={() => handleCellMouseEnter(i, d)}
+                        onTouchStart={() => {
+                          if (isBar) handleCellTouchStart(i, barIdx);
+                        }}
+                        onTouchEnd={handleCellTouchEnd}
+                        onTouchMove={handleCellTouchEnd}
                       >
                         {/* Vista previa de selección con color activo */}
                         {isPreview && !isBar && (
