@@ -76,6 +76,8 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
   const [emojiPickerPosition, setEmojiPickerPosition] = useState(null);
   const [emojiPickerTarget, setEmojiPickerTarget] = useState(null);
   const resizeHandlersRef = useRef({ move: null, end: null });
+  const longPressTimeoutRef = useRef(null);
+  const longPressTargetRef = useRef(null);
 
   // Calcular días reales basado en startDate y endDate
   const numDays = useMemo(() => {
@@ -366,6 +368,25 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
           }
         : etapa
     ));
+  };
+
+  // Long press handler para móvil
+  const handleCellTouchStart = (etapaIdx, entregableIdx, barIdx) => {
+    longPressTargetRef.current = { etapaIdx, entregableIdx, barIdx };
+    longPressTimeoutRef.current = setTimeout(() => {
+      if (barIdx !== -1) {
+        deleteBar(etapaIdx, entregableIdx, barIdx);
+        longPressTargetRef.current = null;
+      }
+    }, 500); // 500ms de presión
+  };
+
+  const handleCellTouchEnd = () => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+    longPressTargetRef.current = null;
   };
 
   const deleteEntregable = (etapaIdx, entregableIdx) => {
@@ -795,6 +816,13 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
                               handleCellMouseDown(etapaIdx, entregableIdx, d);
                             }
                           }}
+                          onTouchStart={() => {
+                            if (!isNonEligible && isBar) {
+                              handleCellTouchStart(etapaIdx, entregableIdx, barIdx);
+                            }
+                          }}
+                          onTouchEnd={handleCellTouchEnd}
+                          onTouchMove={handleCellTouchEnd}
                           onMouseEnter={() => {
                             if (!isNonEligible) {
                               handleCellMouseEnter(etapaIdx, entregableIdx, d);
