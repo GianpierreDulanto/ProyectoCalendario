@@ -205,7 +205,8 @@ function GanttTableTimelineA({ rows, setRows, exporting, setExporting }) {
   const handleBarEmojiChange = (rowIdx, barIdx, emoji) => {
     setRows(rows => rows.map((row, i) => {
       if (i !== rowIdx) return row;
-      let newBars = row.bars.map((bar, j) => j === barIdx ? { ...bar, emoji } : bar);
+      // Si emoji es vacío, considéralo como si se eliminó (null)
+      let newBars = row.bars.map((bar, j) => j === barIdx ? { ...bar, emoji: emoji || null } : bar);
       return { ...row, bars: newBars };
     }));
   };
@@ -733,6 +734,7 @@ function GanttTableTimelineA({ rows, setRows, exporting, setExporting }) {
           }
         }}
         position={emojiPickerPosition}
+        currentEmoji={emojiPickerTarget ? getMergedBars(rows[emojiPickerTarget.rowIdx].bars)[emojiPickerTarget.barIdx]?.emoji || "" : ""}
       />
     </div>
   );

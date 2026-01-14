@@ -1,24 +1,34 @@
 import { useState, useEffect, useRef } from 'react';
 
-const PRESET_MARKERS = [
-  // Números
-  "1", "2", "3", "4", "5", "6", "7", "8", "9",
-  // Check y símbolos simples
-  "✓", "✗", "→", "←", "↑", "↓",
-  // Emojis
-  "⭐", "🎯", "🚀", "⚡", "🔥", "💡",
-  "📋", "📍", "🎨", "✍️", "📝", "🎁",
+// Emojis/marcadores predefinidos - Igual al SimpleEditor
+const PRESET_EMOJIS = [
+  "✓", "✗", "→", "←", "↑", "↓", 
+  "⬤", "◆", "★", "◾", "●", "◐", 
+  "☑", "☐", "☒", "⊙"
 ];
 
-export default function EmojiPickerModal({ isOpen, onClose, onSelect, position }) {
+// Colores predefinidos
+const PRESET_COLORS = [
+  "#3b82f6", "#22c55e", "#eab308", "#f97316", 
+  "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899",
+];
+
+export default function EmojiPickerModal({ isOpen, onClose, onSelect, position, currentEmoji = "" }) {
   const modalRef = useRef(null);
   const [modalPosition, setModalPosition] = useState({ top: 0, left: 0 });
+  const [customEmoji, setCustomEmoji] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setCustomEmoji(currentEmoji || "");
+    }
+  }, [isOpen, currentEmoji]);
 
   useEffect(() => {
     if (isOpen && position) {
       // Calcular posición del modal para que no se salga de pantalla
-      const modalWidth = 280;
-      const modalHeight = 180;
+      const modalWidth = 400;
+      const modalHeight = 350;
       const offset = 10;
       
       let top = position.y + offset;
@@ -81,43 +91,90 @@ export default function EmojiPickerModal({ isOpen, onClose, onSelect, position }
         style={{
           top: `${modalPosition.top}px`,
           left: `${modalPosition.left}px`,
+          width: '400px',
         }}
       >
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-900">Elegir emoji</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-8 gap-1 max-w-xs">
-          {PRESET_MARKERS.map((marker) => (
-            <button
-              key={marker}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(marker);
-                onClose();
-              }}
-              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded text-lg cursor-pointer transition-all hover:scale-110 active:scale-95"
-              title={`Seleccionar ${marker}`}
-            >
-              {marker}
-            </button>
-          ))}
+        <div className="space-y-3">
+          {/* Sección de Color */}
+          <div>
+            <label className="text-xs text-gray-600 block mb-2">Color</label>
+            <div className="flex flex-wrap gap-1.5">
+              {PRESET_COLORS.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => {
+                    // No hacer nada con el color en Timeline, solo cerrar
+                    onClose();
+                  }}
+                  className="w-6 h-6 rounded-full transition-all"
+                  style={{ background: color }}
+                  title={color}
+                />
+              ))}
+              <input
+                type="color"
+                className="w-6 h-6 rounded cursor-pointer border border-gray-300"
+                disabled
+              />
+            </div>
+          </div>
+
+          {/* Sección de Emoji/Marcador */}
+          <div>
+            <label className="text-xs text-gray-600 block mb-2">Emoji/Marcador</label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {PRESET_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => {
+                    setCustomEmoji(emoji);
+                  }}
+                  className={`w-8 h-8 rounded transition-all flex items-center justify-center text-lg ${customEmoji === emoji ? 'ring-2 ring-purple-400 bg-purple-100' : 'bg-gray-100 hover:bg-gray-200'}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+            
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">O ingresa un carácter personalizado:</label>
+              <input
+                type="text"
+                maxLength="1"
+                placeholder="A, 1, *, etc"
+                value={customEmoji}
+                onChange={(e) => {
+                  const char = e.target.value.slice(0, 1);
+                  setCustomEmoji(char);
+                }}
+                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm text-center font-medium bg-white focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-200"
+                autoFocus
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="mt-3 pt-3 border-t border-gray-200">
+        <div className="flex gap-2 mt-3">
           <button
             onClick={onClose}
-            className="w-full px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded transition-colors"
+            className="flex-1 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
           >
             Cancelar
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (customEmoji) {
+                onSelect(customEmoji);
+              } else {
+                // Si está vacío, se considera como eliminación
+                onSelect("");
+              }
+              onClose();
+            }}
+            className="flex-1 px-3 py-2 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 transition-colors"
+          >
+            Guardar
           </button>
         </div>
       </div>

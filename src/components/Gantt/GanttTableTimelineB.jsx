@@ -241,7 +241,8 @@ function GanttTableTimelineB({ rows, setRows, exporting, setExporting }) {
           if (ej !== entregableIdx) return ent;
           return {
             ...ent,
-            bars: ent.bars.map((bar, j) => j === barIdx ? { ...bar, emoji } : bar)
+            // Si emoji es vacío, considéralo como si se eliminó (null)
+            bars: ent.bars.map((bar, j) => j === barIdx ? { ...bar, emoji: emoji || null } : bar)
           };
         })
       };
@@ -737,6 +738,7 @@ function GanttTableTimelineB({ rows, setRows, exporting, setExporting }) {
           }
         }}
         position={emojiPickerPosition}
+        currentEmoji={emojiPickerTarget ? getMergedBars(rows[emojiPickerTarget.etapaIdx].entregables[emojiPickerTarget.entregableIdx].bars)[emojiPickerTarget.barIdx]?.emoji || "" : ""}
       />
     </div>
   );
