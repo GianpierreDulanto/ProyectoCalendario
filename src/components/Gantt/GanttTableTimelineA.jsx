@@ -23,6 +23,7 @@ function GanttTableTimelineA({ rows, setRows, exporting, setExporting }) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState(null);
   const [emojiPickerTarget, setEmojiPickerTarget] = useState(null); // { rowIdx, barIdx }
+  const [emojiPickerCurrentColor, setEmojiPickerCurrentColor] = useState(PRESET_COLORS[0]);
   const resizeHandlersRef = useRef({ move: null, end: null });
   const longPressTimeoutRef = useRef(null);
   const longPressTargetRef = useRef(null);
@@ -202,11 +203,15 @@ function GanttTableTimelineA({ rows, setRows, exporting, setExporting }) {
     }));
   };
 
-  const handleBarEmojiChange = (rowIdx, barIdx, emoji) => {
+  const handleBarEmojiChange = (rowIdx, barIdx, emoji, color) => {
     setRows(rows => rows.map((row, i) => {
       if (i !== rowIdx) return row;
-      // Si emoji es vacío, considéralo como si se eliminó (null)
-      let newBars = row.bars.map((bar, j) => j === barIdx ? { ...bar, emoji: emoji || null } : bar);
+      let newBars = row.bars.map((bar, j) => {
+        if (j === barIdx) {
+          return { ...bar, emoji: emoji || null, color: color || bar.color };
+        }
+        return bar;
+      });
       return { ...row, bars: newBars };
     }));
   };
@@ -653,6 +658,7 @@ function GanttTableTimelineA({ rows, setRows, exporting, setExporting }) {
                                 y: rect.top,
                               });
                               setEmojiPickerTarget({ rowIdx: i, barIdx });
+                              setEmojiPickerCurrentColor(mergedBar.color || PRESET_COLORS[0]);
                               setEmojiPickerOpen(true);
                             }}
                           >
@@ -728,13 +734,14 @@ function GanttTableTimelineA({ rows, setRows, exporting, setExporting }) {
       <EmojiPickerModal
         isOpen={emojiPickerOpen}
         onClose={() => setEmojiPickerOpen(false)}
-        onSelect={(emoji) => {
+        onSelect={(data) => {
           if (emojiPickerTarget) {
-            handleBarEmojiChange(emojiPickerTarget.rowIdx, emojiPickerTarget.barIdx, emoji);
+            handleBarEmojiChange(emojiPickerTarget.rowIdx, emojiPickerTarget.barIdx, data.emoji, data.color);
           }
         }}
         position={emojiPickerPosition}
         currentEmoji={emojiPickerTarget ? getMergedBars(rows[emojiPickerTarget.rowIdx].bars)[emojiPickerTarget.barIdx]?.emoji || "" : ""}
+        currentColor={emojiPickerCurrentColor}
       />
     </div>
   );

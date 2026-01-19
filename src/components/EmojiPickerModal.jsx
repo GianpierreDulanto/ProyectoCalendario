@@ -13,16 +13,18 @@ const PRESET_COLORS = [
   "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899",
 ];
 
-export default function EmojiPickerModal({ isOpen, onClose, onSelect, position, currentEmoji = "" }) {
+export default function EmojiPickerModal({ isOpen, onClose, onSelect, position, currentEmoji = "", currentColor = "#3b82f6" }) {
   const modalRef = useRef(null);
   const [modalPosition, setModalPosition] = useState({ top: 0, left: 0 });
   const [customEmoji, setCustomEmoji] = useState("");
+  const [selectedColor, setSelectedColor] = useState(currentColor);
 
   useEffect(() => {
     if (isOpen) {
       setCustomEmoji(currentEmoji || "");
+      setSelectedColor(currentColor || "#3b82f6");
     }
-  }, [isOpen, currentEmoji]);
+  }, [isOpen, currentEmoji, currentColor]);
 
   useEffect(() => {
     if (isOpen && position) {
@@ -103,18 +105,18 @@ export default function EmojiPickerModal({ isOpen, onClose, onSelect, position, 
                 <button
                   key={color}
                   onClick={() => {
-                    // No hacer nada con el color en Timeline, solo cerrar
-                    onClose();
+                    setSelectedColor(color);
                   }}
-                  className="w-6 h-6 rounded-full transition-all"
+                  className={`w-6 h-6 rounded-full transition-all ${selectedColor === color ? 'ring-2 ring-gray-400' : ''}`}
                   style={{ background: color }}
                   title={color}
                 />
               ))}
               <input
                 type="color"
+                value={selectedColor}
+                onChange={(e) => setSelectedColor(e.target.value)}
                 className="w-6 h-6 rounded cursor-pointer border border-gray-300"
-                disabled
               />
             </div>
           </div>
@@ -164,12 +166,7 @@ export default function EmojiPickerModal({ isOpen, onClose, onSelect, position, 
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (customEmoji) {
-                onSelect(customEmoji);
-              } else {
-                // Si está vacío, se considera como eliminación
-                onSelect("");
-              }
+              onSelect({ emoji: customEmoji || "", color: selectedColor });
               onClose();
             }}
             className="flex-1 px-3 py-2 text-xs font-medium text-white bg-purple-600 rounded hover:bg-purple-700 transition-colors"

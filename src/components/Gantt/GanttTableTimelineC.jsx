@@ -75,6 +75,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState(null);
   const [emojiPickerTarget, setEmojiPickerTarget] = useState(null);
+  const [emojiPickerCurrentColor, setEmojiPickerCurrentColor] = useState(PRESET_COLORS[0]);
   const resizeHandlersRef = useRef({ move: null, end: null });
   const longPressTimeoutRef = useRef(null);
   const longPressTargetRef = useRef(null);
@@ -132,6 +133,26 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
     return groups;
   }, [startDate, endDate]);
 
+  // Funciones helper para convertir entre índices de día y fechas (memorizadas)
+  const indexToDayString = useMemo(() => (dayIndex) => {
+    if (!startDate) return null;
+    const start = parseDate(startDate);
+    start.setDate(start.getDate() + dayIndex);
+    const year = start.getFullYear();
+    const month = String(start.getMonth() + 1).padStart(2, '0');
+    const day = String(start.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [startDate]);
+
+  const dayStringToIndex = useMemo(() => (dayString) => {
+    if (!startDate || !dayString) return null;
+    const start = parseDate(startDate);
+    const target = parseDate(dayString);
+    const diffTime = target - start;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  }, [startDate]);
+
   // Exportar a PNG
   useEffect(() => {
     if (!exporting) return;
@@ -163,6 +184,40 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
     handleExportPNG();
   }, [exporting, setExporting]);
 
+  // Sincronizar índices de barras cuando cambian las fechas
+  useEffect(() => {
+    if (!startDate) return;
+    
+    setRows(prevRows => prevRows.map(etapa => ({
+      ...etapa,
+      entregables: etapa.entregables.map(ent => ({
+        ...ent,
+        bars: ent.bars.map(bar => {
+          // Si la barra NO tiene fechas guardadas, calcularlas basándose en los índices actuales
+          if (!bar.startDate || !bar.endDate) {
+            const newStartDate = indexToDayString(bar.start);
+            const newEndDate = indexToDayString(bar.end);
+            return {
+              ...bar,
+              startDate: newStartDate,
+              endDate: newEndDate
+            };
+          }
+          
+          // Si la barra tiene fechas guardadas, recalcular los índices
+          const newStart = dayStringToIndex(bar.startDate);
+          const newEnd = dayStringToIndex(bar.endDate);
+          return {
+            ...bar,
+            start: newStart !== null ? newStart : bar.start,
+            end: newEnd !== null ? newEnd : bar.end
+          };
+        })
+      }))
+    })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate, dayStringToIndex, indexToDayString]);
+
   useEffect(() => {
     if (!dragInfo) return;
     const handleMouseUp = () => {
@@ -171,6 +226,23 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
         const start = Math.min(startDay, endDay);
         const end = Math.max(startDay, endDay);
         if (end >= start) {
+          // Validar que no haya feriados en el rango
+          let hasHoliday = false;
+          for (let d = start; d <= end; d++) {
+            const dayDate = parseDate(startDate);
+            dayDate.setDate(dayDate.getDate() + d);
+            if (isHoliday(dayDate)) {
+              hasHoliday = true;
+              break;
+            }
+          }
+          
+          if (hasHoliday) {
+            // No permitir crear barra si hay feriados en el rango
+            setDragInfo(null);
+            return;
+          }
+          
           const entregable = rows[etapaIdx]?.entregables?.[entregableIdx];
           const overlap = entregable?.bars?.some(bar => !(end < bar.start || start > bar.end));
           if (!overlap) {
@@ -180,7 +252,14 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
                 ...etapa,
                 entregables: etapa.entregables.map((ent, ej) => {
                   if (ej !== entregableIdx) return ent;
-                  let newBars = [...(ent.bars || []), { start, end, color: activeColor }];
+                  const newBar = {
+                    start,
+                    end,
+                    startDate: indexToDayString(start),
+                    endDate: indexToDayString(end),
+                    color: activeColor
+                  };
+                  let newBars = [...(ent.bars || []), newBar];
                   newBars = getMergedBars(newBars);
                   return { ...ent, bars: newBars };
                 })
@@ -193,7 +272,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
     };
     window.addEventListener('mouseup', handleMouseUp);
     return () => window.removeEventListener('mouseup', handleMouseUp);
-  }, [dragInfo, rows, setRows, activeColor]);
+  }, [dragInfo, rows, setRows, activeColor, startDate, indexToDayString]);
 
   // Si no hay fechas, mostrar un mensaje
   if (!startDate || !endDate) {
@@ -204,22 +283,31 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
     );
   }
 
-  // Función para verificar si un día es no elegible (sábado, domingo o feriado)
-  const isNonEligibleDay = (date) => {
-    // Crear una copia de la fecha para evitar modificaciones
+  // Función para verificar si un día es feriado (inutilizable)
+  const isHoliday = (date) => {
     const d = new Date(date);
-    // Ajustar por zona horaria local
-    const dayOfWeek = d.getDay();
-    const isSaturdayOrSunday = dayOfWeek === 6 || dayOfWeek === 0; // 6 = Sábado, 0 = Domingo
-    
-    // Obtener la fecha en formato YYYY-MM-DD en zona horaria local
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
-    const isHoliday = PERU_HOLIDAYS.includes(dateString);
-    
-    return isSaturdayOrSunday || isHoliday;
+    return PERU_HOLIDAYS.includes(dateString);
+  };
+
+  // Función para verificar si un día es sábado o domingo (usable pero resaltado)
+  const isWeekend = (date) => {
+    const d = new Date(date);
+    const dayOfWeek = d.getDay();
+    return dayOfWeek === 6 || dayOfWeek === 0; // 6 = Sábado, 0 = Domingo
+  };
+
+  // Función para verificar si un día es no elegible (solo feriados)
+  const isNonEligibleDay = (date) => {
+    return isHoliday(date);
+  };
+
+  // Función para verificar si debe mostrarse con resaltado especial (weekend o feriado)
+  const isSpecialDay = (date) => {
+    return isWeekend(date) || isHoliday(date);
   };
 
   // Función para unir barras contiguas del mismo color
@@ -327,11 +415,31 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
               if (side === 'left') {
                 newStart = Math.min(cellIdx, bar.end);
                 if (ent.bars.some((b, idx) => idx !== barIdx && newStart <= b.end && newStart >= b.start)) return bar;
+                
+                // Validar que no haya feriados en el nuevo rango
+                for (let d = newStart; d <= bar.end; d++) {
+                  const dayDate = parseDate(startDate);
+                  dayDate.setDate(dayDate.getDate() + d);
+                  if (isHoliday(dayDate)) return bar;
+                }
               } else {
                 newEnd = Math.max(cellIdx, bar.start);
                 if (ent.bars.some((b, idx) => idx !== barIdx && newEnd <= b.end && newEnd >= b.start)) return bar;
+                
+                // Validar que no haya feriados en el nuevo rango
+                for (let d = bar.start; d <= newEnd; d++) {
+                  const dayDate = parseDate(startDate);
+                  dayDate.setDate(dayDate.getDate() + d);
+                  if (isHoliday(dayDate)) return bar;
+                }
               }
-              return { ...bar, start: newStart, end: newEnd };
+              return {
+                ...bar,
+                start: newStart,
+                end: newEnd,
+                startDate: indexToDayString(newStart),
+                endDate: indexToDayString(newEnd)
+              };
             })
           };
         })
@@ -339,7 +447,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
     }));
   };
 
-  const handleBarEmojiChange = (etapaIdx, entregableIdx, barIdx, emoji) => {
+  const handleBarEmojiChange = (etapaIdx, entregableIdx, barIdx, emoji, color) => {
     setRows(rows => rows.map((etapa, ei) => {
       if (ei !== etapaIdx) return etapa;
       return {
@@ -348,8 +456,12 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
           if (ej !== entregableIdx) return ent;
           return {
             ...ent,
-            // Si emoji es vacío, considéralo como si se eliminó (null)
-            bars: ent.bars.map((bar, j) => j === barIdx ? { ...bar, emoji: emoji || null } : bar)
+            bars: ent.bars.map((bar, j) => {
+              if (j === barIdx) {
+                return { ...bar, emoji: emoji || null, color: color || bar.color };
+              }
+              return bar;
+            })
           };
         })
       };
@@ -475,8 +587,8 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
               <tr style={{ height: '18px' }}>
                 {dateGroups.map((group, gIdx) =>
                   group.dates.map((date, dIdx) => {
-                    const isNonEligible = isNonEligibleDay(date);
-                    const bgColor = isNonEligible ? '#ef4444' : headerBgLight;
+                    const isSpecial = isSpecialDay(date);
+                    const bgColor = isSpecial ? '#ef4444' : headerBgLight;
                     
                     return (
                       <th key={`${gIdx}-${dIdx}`} style={{
@@ -485,7 +597,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
                         padding: '4px 0',
                         textAlign: 'center',
                         fontSize: 11,
-                        fontWeight: isNonEligible ? '700' : '700',
+                        fontWeight: '700',
                         width: 22,
                         minWidth: 22,
                         verticalAlign: 'middle',
@@ -543,7 +655,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
                         {Array.from({ length: numDays }, (_, d) => {
                           const currentDate = parseDate(startDate);
                           currentDate.setDate(currentDate.getDate() + d);
-                          const isNonEligible = isNonEligibleDay(currentDate);
+                          const isSpecial = isSpecialDay(currentDate);
                           
                           const barHere = mergedBars.find(bar => d >= bar.start && d <= bar.end);
                           const isBarStart = barHere && d === barHere.start;
@@ -554,7 +666,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
                               padding: 0,
                               width: 22,
                               height: 24,
-                              background: isNonEligible ? '#fee2e2' : etapaBg,
+                              background: isSpecial ? '#fee2e2' : etapaBg,
                               borderBottom: isLastEntregable ? '1px solid #a855f7' : '1px solid #e5e7eb',
                               position: 'relative',
                             }}>
@@ -657,9 +769,9 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
             <tr>
               {dateGroups.map((group, gIdx) =>
                 group.dates.map((date, dIdx) => {
-                  const isNonEligible = isNonEligibleDay(date);
-                  const bgColor = isNonEligible ? '#ef4444' : headerBgLight;
-                  const textColor = isNonEligible ? '#ffffff' : '#ffffff';
+                  const isSpecial = isSpecialDay(date);
+                  const bgColor = isSpecial ? '#ef4444' : headerBgLight;
+                  const textColor = isSpecial ? '#ffffff' : '#ffffff';
                   
                   return (
                     <th key={`${gIdx}-${dIdx}`} style={{
@@ -668,7 +780,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
                       padding: '8px',
                       textAlign: 'center',
                       fontSize: '0.75rem',
-                      fontWeight: isNonEligible ? '700' : '600',
+                      fontWeight: isSpecial ? '700' : '600',
                     }}>
                       {date.getDate()}
                     </th>
@@ -784,6 +896,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
                       group.dates.map((date, dIdx) => {
                         const d = dateGroups.slice(0, gIdx).reduce((sum, g) => sum + g.dates.length, 0) + dIdx;
                         const isNonEligible = isNonEligibleDay(date);
+                        const isSpecial = isSpecialDay(date);
                         const barIdx = entregable.bars?.findIndex(bar => d >= bar.start && d <= bar.end) ?? -1;
                         const isBar = barIdx !== -1;
                         
@@ -804,7 +917,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
                           style={{
                             padding: 0,
                             height: 10,
-                            background: isNonEligible ? '#fee2e2' : rowBg,
+                            background: isSpecial ? '#fee2e2' : rowBg,
                             borderBottom: '1px solid #e5e7eb',
                             position: 'relative',
                             cursor: isNonEligible ? 'not-allowed' : 'crosshair',
@@ -858,6 +971,7 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
                                 y: rect.top,
                               });
                               setEmojiPickerTarget({ etapaIdx, entregableIdx, barIdx });
+                              setEmojiPickerCurrentColor(mergedBar.color || PRESET_COLORS[0]);
                               setEmojiPickerOpen(true);
                             }}>
                               {mergedBar.emoji && (
@@ -940,13 +1054,14 @@ function GanttTableTimelineC({ rows, setRows, exporting, setExporting, startDate
       <EmojiPickerModal
         isOpen={emojiPickerOpen}
         onClose={() => setEmojiPickerOpen(false)}
-        onSelect={(emoji) => {
+        onSelect={(data) => {
           if (emojiPickerTarget) {
-            handleBarEmojiChange(emojiPickerTarget.etapaIdx, emojiPickerTarget.entregableIdx, emojiPickerTarget.barIdx, emoji);
+            handleBarEmojiChange(emojiPickerTarget.etapaIdx, emojiPickerTarget.entregableIdx, emojiPickerTarget.barIdx, data.emoji, data.color);
           }
         }}
         position={emojiPickerPosition}
         currentEmoji={emojiPickerTarget ? getMergedBars(rows[emojiPickerTarget.etapaIdx].entregables[emojiPickerTarget.entregableIdx].bars)[emojiPickerTarget.barIdx]?.emoji || "" : ""}
+        currentColor={emojiPickerCurrentColor}
       />
     </div>
   );

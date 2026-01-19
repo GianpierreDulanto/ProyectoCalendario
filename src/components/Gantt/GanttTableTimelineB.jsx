@@ -23,6 +23,7 @@ function GanttTableTimelineB({ rows, setRows, exporting, setExporting }) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState(null);
   const [emojiPickerTarget, setEmojiPickerTarget] = useState(null); // { etapaIdx, entregableIdx, barIdx }
+  const [emojiPickerCurrentColor, setEmojiPickerCurrentColor] = useState(PRESET_COLORS[0]);
   const resizeHandlersRef = useRef({ move: null, end: null });
   const longPressTimeoutRef = useRef(null);
   const longPressTargetRef = useRef(null);
@@ -232,7 +233,7 @@ function GanttTableTimelineB({ rows, setRows, exporting, setExporting }) {
     }));
   };
 
-  const handleBarEmojiChange = (etapaIdx, entregableIdx, barIdx, emoji) => {
+  const handleBarEmojiChange = (etapaIdx, entregableIdx, barIdx, emoji, color) => {
     setRows(rows => rows.map((etapa, ei) => {
       if (ei !== etapaIdx) return etapa;
       return {
@@ -241,8 +242,12 @@ function GanttTableTimelineB({ rows, setRows, exporting, setExporting }) {
           if (ej !== entregableIdx) return ent;
           return {
             ...ent,
-            // Si emoji es vacío, considéralo como si se eliminó (null)
-            bars: ent.bars.map((bar, j) => j === barIdx ? { ...bar, emoji: emoji || null } : bar)
+            bars: ent.bars.map((bar, j) => {
+              if (j === barIdx) {
+                return { ...bar, emoji: emoji || null, color: color || bar.color };
+              }
+              return bar;
+            })
           };
         })
       };
@@ -651,6 +656,7 @@ function GanttTableTimelineB({ rows, setRows, exporting, setExporting }) {
                                 y: rect.top,
                               });
                               setEmojiPickerTarget({ etapaIdx, entregableIdx, barIdx });
+                              setEmojiPickerCurrentColor(mergedBar.color || PRESET_COLORS[0]);
                               setEmojiPickerOpen(true);
                             }}>
                               {mergedBar.emoji && (
@@ -732,13 +738,14 @@ function GanttTableTimelineB({ rows, setRows, exporting, setExporting }) {
       <EmojiPickerModal
         isOpen={emojiPickerOpen}
         onClose={() => setEmojiPickerOpen(false)}
-        onSelect={(emoji) => {
+        onSelect={(data) => {
           if (emojiPickerTarget) {
-            handleBarEmojiChange(emojiPickerTarget.etapaIdx, emojiPickerTarget.entregableIdx, emojiPickerTarget.barIdx, emoji);
+            handleBarEmojiChange(emojiPickerTarget.etapaIdx, emojiPickerTarget.entregableIdx, emojiPickerTarget.barIdx, data.emoji, data.color);
           }
         }}
         position={emojiPickerPosition}
         currentEmoji={emojiPickerTarget ? getMergedBars(rows[emojiPickerTarget.etapaIdx].entregables[emojiPickerTarget.entregableIdx].bars)[emojiPickerTarget.barIdx]?.emoji || "" : ""}
+        currentColor={emojiPickerCurrentColor}
       />
     </div>
   );
